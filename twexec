@@ -1,0 +1,535 @@
+#!/usr/bin/env ruby
+# encoding : utf-8
+
+require 'rubygems'
+require "capybara"
+require "capybara/dsl"
+require 'capybara/poltergeist'
+require 'thor'
+require "redis"
+require 'colorize'
+require 'ruby-progressbar'
+require 'highline/import'
+require 'awesome_print'
+require 'rest_client'
+
+#{}%x(nohup redis-server &)
+
+class Tw 
+
+  Capybara.register_driver :selenium_with_long_timeout do |app|
+    client = Selenium::WebDriver::Remote::Http::Default.new
+    client.timeout = 120
+    Capybara::Driver::Selenium.new(app, :browser => :firefox, :http_client => client, :timeout => 120)
+  end
+
+  Capybara.app_host           = "http://www.tribalwars.com.br/"
+  Capybara.run_server         = false
+  Capybara.current_driver     = :poltergeist
+  Capybara.javascript_driver  = :selenium_with_long_timeout
+
+  include Capybara::DSL
+
+  def initialize(options = {})
+    @world   = options[:world]
+    @login   = options[:login]
+    @passwd  = options[:passwd]
+    @connected  = false
+    
+    @redis_ally       = Redis.new(:host => "127.0.0.1", :db => 0)
+    @redis_village    = Redis.new(:host => "127.0.0.1", :db => 1)
+    @redis_player     = Redis.new(:host => "127.0.0.1", :db => 2)
+    @redis_report     = Redis.new(:host => "127.0.0.1", :db => 3)
+    @redis_influence  = Redis.new(:host => "127.0.0.1", :db => 4)
+
+    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 10}
+
+    commands
+  end
+
+  def analisaBot
+    botMsg = "contra Bots"
+    if page.body.to_s.index(botMsg)
+      puts "BOT found.... aborting..."
+      page.save_screenshot('boot.png')
+      exit(0)
+    end
+  end
+
+  def login  
+    visit('/')
+    fill_in('user',     :with => @login)
+    fill_in('password', :with => @passwd)
+    page.find(:xpath,'/html/body/div[2]/div[1]/div[2]/div/div[2]/div[2]/form/div/div/div/a').click
+    page.save_screenshot('login1.png')
+    analisaBot
+    page.find(:xpath,'/html/body/div[2]/div[1]/div[2]/div/div[2]/div[2]/div[1]/div[2]/form/div[1]/div/a[1]').click
+    analisaBot
+    page.save_screenshot('login2.png')
+    @connected = true
+    puts "Connected status.: ON".blue
+  end
+
+  def login_map  
+    page.visit('http://www.tribalwars.com.br/external_auth.php?client=tribalwarsmap&sid=53da222ada9e1')
+    fill_in('name',     :with => @login)
+    fill_in('password', :with => @passwd)
+    page.find(:xpath,'/html/body/div/table/tbody/tr/td/table/tbody/tr/td/form/input[3]').click
+    page.save_screenshot('login_map.png')
+
+
+    exit(0)
+
+    page.find(:xpath,'/html/body/div[2]/div[1]/div[2]/div/div[2]/div[2]/div[1]/div[2]/form/div[1]/div/a[1]').click
+    analisaBot
+    page.save_screenshot('login2.png')
+    @connected = true
+    puts "Connected status.: ON".blue
+  end
+
+  def refresh_world 
+    require 'rest_client'
+    
+    fileAlly_name    = File.expand_path(File.dirname(__FILE__) ).to_s + "/ally#{@world}.txt"
+    fileVillage_name = File.expand_path(File.dirname(__FILE__) ).to_s + "/village#{@world}.txt"
+    filePlayer_name  = File.expand_path(File.dirname(__FILE__) ).to_s + "/player#{@world}.txt"
+
+    @redis_ally.flushdb
+    @redis_village.flushdb
+    @redis_player.flushdb
+    @redis_report.flushdb
+    @redis_influence.flushdb
+
+    response    = RestClient.get "http://#{@world}.tribalwars.com.br/map/ally.txt"
+    fileAlly    = File.open(fileAlly_name,"w")
+    fileAlly.write CGI::unescape(response.body) 
+
+    response    = RestClient.get "http://#{@world}.tribalwars.com.br/map/village.txt"
+    fileVillage = File.open(fileVillage_name,"w")
+    fileVillage.write CGI::unescape(response.body) 
+
+    response    = RestClient.get "http://#{@world}.tribalwars.com.br/map/player.txt"
+    filePlayer  = File.open(filePlayer_name,"w")
+    filePlayer.write CGI::unescape(response.body)
+    
+    File.open(fileAlly_name   ,"r").each do |line|
+      aux = line.split(',')
+      @redis_ally.hmset aux[2], 'id', aux[0], 'name', aux[1], 'tag', aux[2], 'members', aux[3], 'villages', aux[4], 'points', aux[5], 'allpoints', aux[6], 'rank', aux[7] 
+    end
+    puts "Allys     loaded => #{@redis_ally.dbsize} loaded."
+
+    File.open(fileVillage_name   ,"r").each do |line|
+      aux = line.split(',')
+      @redis_village.hmset aux[0], 'name', aux[1], 'x', aux[2], 'y', aux[3], 'player', aux[4], 'points', aux[5], 'rank', aux[6] 
+    end
+    puts "Villages  loaded => #{@redis_village.dbsize} loaded."
+
+    File.open(filePlayer_name   ,"r").each do |line|
+      aux = line.chomp.split(',')
+      @redis_player.hmset aux[1], 'id', aux[0], 'name' , aux[1], 'ally', aux[2], 'villages', aux[3], 'points', aux[4], 'rank', aux[5] 
+    end
+    puts "Players   loaded => #{@redis_player.dbsize}."
+
+    influence  
+    puts "Influence loaded => #{@redis_influence.dbsize}."
+
+    connected?
+
+    report ""
+    puts "Reports   loaded => #{@redis_report.dbsize}."
+
+  end
+
+  def show_player player
+
+    info = @redis_player.hmget("#{player}",'id','name','ally','villages','points')
+    ally = info[2]
+    id   = info[0]
+    puts info.inspect
+    puts ally
+    keys = @redis_village.keys
+    keys.sort.each do |key|
+      if @redis_village.hmget(key,'player')[0] == id
+        aux = @redis_village.hmget(key,'name','x','y')
+        puts "#{key} #{aux.inspect}"
+      end
+    end
+    keys = @redis_player.keys
+    keys.sort.each do |key|
+      if @redis_player.hmget(key,'ally')[0] == ally
+        aux = @redis_player.hmget(key,'id','name','ally','villages','points')
+        puts aux.inspect
+      end
+    end
+
+  end
+
+  def influence  conditions={} 
+    xi = @global_conditions[:master_x]
+    yi = @global_conditions[:master_y]
+    distance = @global_conditions[:master_distance].to_f
+    if !conditions.empty?
+      xi = conditions[:x].to_i if conditions.key?(:x) 
+      yi = conditions[:y].to_i if conditions.key?(:y) 
+      distance = conditions[:d].to_f if conditions.key?(:d)
+    end
+    #and ville[3] == "0" then  # and (ville[3] == "0" or ['14142','14932'].include?(key)) then
+    @redis_village.keys('*').each do |key|
+      ville = @redis_village.hmget(key,'name','x','y','player','points')
+      xf = ville[1].to_i
+      yf = ville[2].to_i
+      dist = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
+      if dist <= distance and dist > 0 
+        @redis_influence.hmset key , 'x' , xf, 'y' , yf, 'd' , dist , 'p' , ville[3]
+      end
+    end
+  end
+
+  def report conditions={}
+
+    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=attack&screen=report')
+    page.save_screenshot('report.png')
+    analisaBot
+    xi = @global_conditions[:master_x]
+    yi = @global_conditions[:master_y]
+    distance = @global_conditions[:master_distance].to_f
+    if !conditions.empty?
+      xi = conditions[:x].to_i if conditions.key?(:x) 
+      yi = conditions[:y].to_i if conditions.key?(:y) 
+      distance = conditions[:d].to_f if conditions.key?(:d)
+    end
+    def getall xi, yi
+      #puts page.all('a').each.size
+      page.all('a').each do |a|
+        #puts "aqui #{a.text.include?('xykoBR')} #{a.text.include?('ataca') or a.text.include?('explora')} #{page.has_link?(a.text)} #{a.text}"
+        if a.text.include?('xykoBR') and (a.text.include?('ataca') or a.text.include?('explora')) and page.has_link?(a.text) then
+         #puts "Analazing #{a.text}...."
+          xf    = a.text.scan(/[[:digit:]]{3}\|[[:digit:]]{3}/)[0].to_s.split('|')[0].to_i
+          yf    = a.text.scan(/[[:digit:]]{3}\|[[:digit:]]{3}/)[0].to_s.split('|')[1].to_i
+          dist  = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)            
+          @redis_report.hmset xf.to_s+'_'+yf.to_s,  'link' , 'http://'+@world+'.tribalwars.com.br'+a[:href].to_s, 'x' ,xf , 'y',  yf, 'd', dist
+        end
+      end
+    end
+    getall xi, yi
+    [2,3,4].each do |index|
+      if !page.all('a', :text => "[#{index}]").empty?()
+        click_link("[#{index}]")
+        getall xi, yi
+      end
+    end
+    #puts reports # 0800 880 0888
+  end
+
+  def yesno(prompt = 'Continue?', default = true)
+    a = ''
+    s = default ? '[Y/n]' : '[y/N]'
+    d = default ? 'y' : 'n'
+    until %w[y n].include? a
+    a = ask("#{prompt} #{s} ") { |q| q.limit = 1; q.case = :downcase }
+    a = d if a.length == 0
+    end
+    a == 'y'
+  end
+
+  def connected?
+    if !@connected
+        login
+        Prompt.application.prompt = "Tribal > ".blue
+    end
+  end
+
+
+  def spys conditions
+
+      xi = @global_conditions[:master_x]
+      yi = @global_conditions[:master_y]
+      distance = @global_conditions[:master_distance].to_f
+      if !conditions.empty?
+        xi = conditions[:x].to_i if conditions.key?(:x) 
+        yi = conditions[:y].to_i if conditions.key?(:y) 
+        distance = conditions[:d].to_f if conditions.key?(:d)
+      end
+
+      @redis_influence.keys.each do |key|
+        
+        aux = @redis_influence.hmget(key,'x','y','d','p')
+        if conditions[:p].split('-').include? aux[3] then
+
+          target = aux[0]+'|'+aux[1]
+          page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&screen=place')
+          analisaBot
+          page.save_screenshot('spy1.png')
+
+          fill_in('spy'     , :with => '1')
+          fill_in('light'   , :with => '5')
+          fill_in('input'   , :with => target)
+          page.click_button('Ataque')
+          analisaBot
+          page.click_button('OK')
+          analisaBot
+          puts "ataquei #{target}"
+
+        end
+
+      end
+
+  end
+
+  def farm conditions
+
+      puts "Analizando #{@redis_report.dbsize} relatórios..."
+
+      xi = @global_conditions[:master_x]
+      yi = @global_conditions[:master_y]
+      distance = @global_conditions[:master_distance].to_f
+      clean = true
+      if !conditions.empty?
+        xi = conditions[:x].to_i if conditions.key?(:x) 
+        yi = conditions[:y].to_i if conditions.key?(:y) 
+        distance = conditions[:d].to_f if conditions.key?(:d)
+      end 
+
+      @redis_report.keys('*').each do |key|
+        report = @redis_report.hmget(key,'link','x','y','dist') 
+        visit(report[0])
+        analisaBot
+        save_screenshot('farm1.png')
+        begin
+          table = page.find_by_id('attack_spy').text.gsub(/[a-zA-Z:çá()éí.]/,'')
+          wood  = table.split[0].to_i
+          stone = table.split[1].to_i
+          iron  = table.split[2].to_i
+          capacity = wood + stone + iron
+          tableDefesa = page.find_by_id('attack_info_def').text
+
+          defensor = tableDefesa.split(':')[1].gsub('Defensor','').gsub('Destino','').strip
+          alvo     = tableDefesa.split(':')[2].gsub('Quantidade','').strip
+          tropas = 0
+          tableDefesa.split(':')[3].gsub('Perdas','').strip.split(' ').each do |tropa|
+            tropas += tropa.to_i
+          end
+
+          puts "   "
+          puts "Capacity #{capacity}"
+          puts "Defensor #{defensor}"
+          puts "Alvo     #{alvo}"
+          puts "Tropas   #{tropas}"
+          puts "   "
+
+          # # to be continued ....
+
+          if capacity == 0
+            puts "Apagando página zerada..."
+            all('a').select {|elt| elt.text == "Apagar" }.first.click
+          end
+
+          if tropas == 0       
+            all('a').select {|elt| elt.text == "» Atacar esta aldeia." }.first.click
+            save_screenshot('farm2.png')
+            light = page.find(:xpath,'/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/form/table/tbody/tr[2]/td[2]/table/tbody/tr[3]/td/a[2]').text.to_s.gsub('(','').gsub(')','').to_i
+            qtd = (capacity / 80).to_i
+            qtd = 5 if qtd < 5 
+            puts "Iniciando ataque....#{light} CLs - #{qtd}"
+            fill_in('spy'     , :with => '1')
+            fill_in('light'   , :with => '5')
+            click_button('Ataque')
+            analisaBot
+            save_screenshot('farm3.png')            
+            click_button('OK')
+            analisaBot
+            save_screenshot('farm4.png')
+            visit(report[0])
+            puts "Apagando página #{report[0]}"
+            all('a').select {|elt| elt.text == "Apagar" }.first.click
+          end
+
+        rescue Capybara::ElementNotFound
+          puts "Erro in "
+          puts "   "
+          puts "Defensor #{defensor} Alvo #{alvo}"
+          puts "   "
+          #page.all('a').select {|elt| elt.text == "Apagar" }.first.click
+        end
+
+      end
+  end
+
+  def commands
+    
+    require 'prompt'
+    extend Prompt::DSL
+
+    group "Commands"
+    desc "Refresh world info."
+    command "refresh" do ||
+      refresh_world 
+    end
+
+    desc "Login"
+    command "login" do ||
+      login
+      Prompt.application.prompt = "Tribal > ".blue
+    end
+
+    desc "Login"
+    command "login_map" do ||
+      login_map
+      Prompt.application.prompt = "TribalMap > ".blue
+    end
+
+    desc "Player"
+    param :player, "Show player info", @redis_player.keys('*')
+    command "player :player" do |player|
+      show_player player
+    end
+
+    desc "Ally"
+    param :ally, "Show ally info", @redis_player.keys('*')
+    command "ally :ally" do |ally|
+      puts @redis_ally.get("#{ally}")
+    end
+
+    desc "Village"
+    param :village, "Show village info", @redis_player.keys('*')
+    command "village :village" do |village|
+      puts @redis_village.get("#{village}")
+    end
+
+    desc "Influence"
+    param :influence_conditions, "Select conditions to select villages inner influence window from master_village."
+    command "influence :influence_conditions" do |conditions|
+      @redis_influence.flushdb
+      influence (to_hash_conditions conditions)
+      puts "Influence loaded => #{@redis_influence.dbsize}."
+    end
+
+    desc "Report"
+    command "report " do ||
+      connected?
+      @redis_report.flushdb
+      report #(to_hash_conditions conditions)
+      puts "Reports   loaded => #{@redis_report.dbsize}."
+    end
+
+    desc "Spys"
+    param :spys_conditions, "Select conditions to select villages inner influence set."
+    command "spy :spys_conditions" do |conditions|
+      connected?
+      spys (to_hash_conditions conditions)
+    end
+
+    desc "Farm"
+    param :farm_conditions, "Select conditions to select villages inner influence set."
+    command "farm :farm_conditions" do |conditions|
+      connected?
+      farm (to_hash_conditions conditions)
+    end
+
+    desc "Conditions"
+    param :master, "Set conditions."
+    command "conditions" do |master|
+      show_conditions (to_hash_conditions conditions)
+    end
+
+    desc "Notes"
+    command "notes" do ||
+      show_notes
+    end
+
+    Prompt.application.prompt = "Tribal > ".red
+    history_file = File.join(File.expand_path(File.dirname(__FILE__) ).to_s, ".tribal-history")    
+    Prompt::Console.start history_file
+
+  end
+
+  def show_notes
+    connected?
+    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&screen=overview')
+    analisaBot
+    page.save_screenshot('overview.png')
+    x = page.all('a').select {|elt| elt.text == "» Editar" }.first.click
+    puts x.inspect
+    page.save_screenshot('notes.png')
+  end
+
+  def show_conditions conditions
+    ap @global_conditions
+    ap conditions
+  end
+
+  def to_hash_conditions conditions
+      hash = Hash.new
+      conditions.split.each do |condition|
+        key   = condition.split(',')[0].to_sym
+        value = condition.split(',')[1]
+        hash.merge!({key => value}) 
+      end
+      return hash
+    end
+
+  # def method_missing(method, *args, &block)
+  #   puts method
+  #   puts args
+  #   puts block
+  # end
+
+ end
+
+class TwExec < Thor
+
+  desc 'man', 'login in a tribalwar.'
+  method_option :login,  :type => :string, :aliases => '-l', :default => 'xykobr'
+  method_option :passwd, :type => :string, :aliases => '-p', :default => 'barbara'
+  method_option :world,  :type => :string, :aliases => '-w', :default => 'br62'
+  def man
+    parametros = {:world => options[:world], :login => options[:login], :passwd => options[:passwd]}
+    tw = Tw.new parametros
+  end
+
+  default_task :man
+end
+
+TwExec.start(ARGV)
+
+
+
+# 195.154.80.133
+# Netmask   255.255.255.0
+# Gateway   195.154.80.1
+# Primary dns   62.210.16.6
+# Secondary dns   62.210.16.7
+# start at 10:37
+
+
+# [xykobr@sd-33673 ~]$ sudo systemctl start nginx.service
+# [xykobr@sd-33673 ~]$ sudo netstat -anp|grep LISTEN|grep 80
+# tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      3192/nginx: master
+# [xykobr@sd-33673 ~]$ curl 0.0.0.0
+# <!DOCTYPE html>
+# <html>
+# <head>
+# <title>Welcome to nginx!</title>
+# <style>
+#     body {
+#         width: 35em;
+#         margin: 0 auto;
+#         font-family: Tahoma, Verdana, Arial, sans-serif;
+#     }
+# </style>
+# </head>
+# <body>
+# <h1>Welcome to nginx!</h1>
+# <p>If you see this page, the nginx web server is successfully installed and
+# working. Further configuration is required.</p>
+
+# <p>For online documentation and support please refer to
+# <a href="http://nginx.org/">nginx.org</a>.<br/>
+# Commercial support is available at
+# <a href="http://nginx.com/">nginx.com</a>.</p>
+
+# <p><em>Thank you for using nginx.</em></p>
+# </body>
+# </html>
+
+

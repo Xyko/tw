@@ -1,0 +1,7 @@
+*.txt
+*.png
+.ruby-gemset
+.ruby-version
+dump.rdb
+nohup.out
+restart_redis
