@@ -41,8 +41,9 @@ class Tw
     @redis_player     = Redis.new(:host => "127.0.0.1", :db => 2)
     @redis_report     = Redis.new(:host => "127.0.0.1", :db => 3)
     @redis_influence  = Redis.new(:host => "127.0.0.1", :db => 4)
+    @redis_myvilles   = Redis.new(:host => "127.0.0.1", :db => 5)
 
-    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 10}
+    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 12}
 
     commands
   end
@@ -137,6 +138,9 @@ class Tw
 
     report ""
     puts "Reports   loaded => #{@redis_report.dbsize}."
+
+    # refresh_my_villes
+    # puts "Refresh   loaded => #{@redis_myvilles.dbsize}."
 
   end
 
@@ -262,7 +266,7 @@ class Tw
           page.save_screenshot('spy1.png')
 
           fill_in('spy'     , :with => '1')
-          fill_in('light'   , :with => '5')
+          #fill_in('light'   , :with => '5')
           fill_in('input'   , :with => target)
           page.click_button('Ataque')
           analisaBot
@@ -324,24 +328,20 @@ class Tw
             all('a').select {|elt| elt.text == "Apagar" }.first.click
           end
 
-          if tropas == 0       
-            all('a').select {|elt| elt.text == "» Atacar esta aldeia." }.first.click
-            save_screenshot('farm2.png')
-            light = page.find(:xpath,'/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/form/table/tbody/tr[2]/td[2]/table/tbody/tr[3]/td/a[2]').text.to_s.gsub('(','').gsub(')','').to_i
-            qtd = (capacity / 80).to_i
-            qtd = 5 if qtd < 5 
-            puts "Iniciando ataque....#{light} CLs - #{qtd}"
-            fill_in('spy'     , :with => '1')
-            fill_in('light'   , :with => '5')
-            click_button('Ataque')
-            analisaBot
-            save_screenshot('farm3.png')            
-            click_button('OK')
-            analisaBot
-            save_screenshot('farm4.png')
-            visit(report[0])
-            puts "Apagando página #{report[0]}"
-            all('a').select {|elt| elt.text == "Apagar" }.first.click
+          # table.all('tr').each  do |tr|
+          #   puts tr.all('td').inspect
+          # end
+
+          if tropas == 0  
+            if capacity > 30     
+              attack_c = page.find(:xpath,'/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/table[2]/tbody/tr[3]/td/table[3]/tbody/tr[2]/td/a[3]')
+              attack_c.click()
+              puts "Atacando aldeia com C button e zerando página ..."
+              all('a').select {|elt| elt.text == "Apagar" }.first.click
+            else
+              puts "Zerando página com poucos recursos..."
+              all('a').select {|elt| elt.text == "Apagar" }.first.click
+            end
           end
 
         rescue Capybara::ElementNotFound
@@ -437,6 +437,12 @@ class Tw
       show_notes
     end
 
+    desc "MyVilles"
+    command "villes" do ||
+      connected?
+      refresh_my_villes
+    end
+
     Prompt.application.prompt = "Tribal > ".red
     history_file = File.join(File.expand_path(File.dirname(__FILE__) ).to_s, ".tribal-history")    
     Prompt::Console.start history_file
@@ -452,6 +458,33 @@ class Tw
     puts x.inspect
     page.save_screenshot('notes.png')
   end
+
+  def refresh_my_villes
+    connected?
+    #page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=combined&screen=overview_villages')
+    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=units&screen=overview_villages&type=there ')
+
+    table = page.find_by_id('units_table')
+    table.all('tr').each  do |tr|
+      puts tr.all('td')[0].text
+      if tr.all('td')[1] == 'suas próprias'
+        ville   = tr.all('td')[0]
+        spear   = tr.all('td')[2]
+        swaord  = tr.all('td')[3]
+        axe     = tr.all('td')[4]
+        spy     = tr.all('td')[6]
+        light   = tr.all('td')[7]
+        heavy   = tr.all('td')[9]
+
+        puts ville
+        puts light
+      end
+    end 
+
+    # analisaBot
+    # page.save_screenshot('combinated.png')
+  end
+
 
   def show_conditions conditions
     ap @global_conditions
@@ -491,45 +524,5 @@ class TwExec < Thor
 end
 
 TwExec.start(ARGV)
-
-
-
-# 195.154.80.133
-# Netmask   255.255.255.0
-# Gateway   195.154.80.1
-# Primary dns   62.210.16.6
-# Secondary dns   62.210.16.7
-# start at 10:37
-
-
-# [xykobr@sd-33673 ~]$ sudo systemctl start nginx.service
-# [xykobr@sd-33673 ~]$ sudo netstat -anp|grep LISTEN|grep 80
-# tcp        0      0 0.0.0.0:80              0.0.0.0:*               LISTEN      3192/nginx: master
-# [xykobr@sd-33673 ~]$ curl 0.0.0.0
-# <!DOCTYPE html>
-# <html>
-# <head>
-# <title>Welcome to nginx!</title>
-# <style>
-#     body {
-#         width: 35em;
-#         margin: 0 auto;
-#         font-family: Tahoma, Verdana, Arial, sans-serif;
-#     }
-# </style>
-# </head>
-# <body>
-# <h1>Welcome to nginx!</h1>
-# <p>If you see this page, the nginx web server is successfully installed and
-# working. Further configuration is required.</p>
-
-# <p>For online documentation and support please refer to
-# <a href="http://nginx.org/">nginx.org</a>.<br/>
-# Commercial support is available at
-# <a href="http://nginx.com/">nginx.com</a>.</p>
-
-# <p><em>Thank you for using nginx.</em></p>
-# </body>
-# </html>
 
 

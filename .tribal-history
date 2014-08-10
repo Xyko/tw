@@ -1,0 +1,10 @@
+clear
+login
+villes
+farm
+
+spy "p,0"
+refresh
+report
+farm ""
+exit
