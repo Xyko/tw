@@ -328,10 +328,6 @@ class Tw
             all('a').select {|elt| elt.text == "Apagar" }.first.click
           end
 
-          # table.all('tr').each  do |tr|
-          #   puts tr.all('td').inspect
-          # end
-
           if tropas == 0  
             if capacity > 30     
               attack_c = page.find(:xpath,'/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/table[2]/tbody/tr[3]/td/table[3]/tbody/tr[2]/td/a[3]')
