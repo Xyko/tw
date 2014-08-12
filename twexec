@@ -139,8 +139,8 @@ class Tw
     report ""
     puts "Reports   loaded => #{@redis_report.dbsize}."
 
-    # refresh_my_villes
-    # puts "Refresh   loaded => #{@redis_myvilles.dbsize}."
+    refresh_my_villes
+    puts "MVillages loaded => #{@redis_myvilles.dbsize}."
 
   end
 
@@ -270,10 +270,12 @@ class Tw
           fill_in('input'   , :with => target)
           page.click_button('Ataque')
           analisaBot
+          sleep(1)
           page.click_button('OK')
           analisaBot
+          sleep(1)
           puts "ataquei #{target}"
-
+          sleep(1)
         end
 
       end
@@ -329,15 +331,11 @@ class Tw
           end
 
           if tropas == 0  
-            if capacity > 30     
-              attack_c = page.find(:xpath,'/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/table[2]/tbody/tr[3]/td/table[3]/tbody/tr[2]/td/a[3]')
-              attack_c.click()
-              puts "Atacando aldeia com C button e zerando página ..."
-              all('a').select {|elt| elt.text == "Apagar" }.first.click
-            else
-              puts "Zerando página com poucos recursos..."
-              all('a').select {|elt| elt.text == "Apagar" }.first.click
-            end
+            puts "Trpas zeradas...."
+              @redis_myvilles.keys.each do |key|
+                aux = @redis_influence.hmget(key,'name','x','y','spear','sword','axe','light','spy','heavy')
+                puts aux.inspect
+              end
           end
 
         rescue Capybara::ElementNotFound
@@ -462,25 +460,40 @@ class Tw
 
     table = page.find_by_id('units_table')
     table.all('tr').each  do |tr|
-      puts tr.all('td')[0].text
-      if tr.all('td')[1] == 'suas próprias'
-        ville   = tr.all('td')[0]
-        spear   = tr.all('td')[2]
-        swaord  = tr.all('td')[3]
-        axe     = tr.all('td')[4]
-        spy     = tr.all('td')[6]
-        light   = tr.all('td')[7]
-        heavy   = tr.all('td')[9]
 
-        puts ville
-        puts light
+      if tr.text.include? 'suas próprias'
+        ville_name  = tr.text.split(')')[0].split('(')[0].strip
+        ville_xy    = (tr.text.match /\d{3}\|\d{3}/).to_s 
+        ville_x     = ville_xy.split('|')[0]
+        ville_y     = ville_xy.split('|')[1]
+        tropas      = tr.text.split('suas próprias')[1].gsub('Comandos','').strip.split(' ')
+        spear   = tropas[0]
+        sword   = tropas[1]
+        axe     = tropas[2]
+        spy     = tropas[4]
+        ligth   = tropas[5]
+        heavy   = tropas[7]      
+        ram     = tropas[8]      
+        catapult= tropas[9]      
+        knight  = tropas[10]      
+        snob    = tropas[11]      
+        # puts "spear     #{spear}"
+        # puts "sword     #{sword}"
+        # puts "axe       #{axe}"
+        # puts "spy       #{spy}"
+        # puts "ligth     #{ligth}"
+        # puts "heavy     #{heavy}"
+        # puts "ram       #{ram}"
+        # puts "catapult  #{catapult}"
+        # puts "knight    #{knight}"
+        # puts "snob      #{snob}"
+        @redis_myvilles.hmset ville_xy, 'name', ville_name, 'x', ville_x, 'y' , ville_y, 'spear',spear     ,'sword',sword     ,'axe',axe       ,'spy',spy       ,'ligth',ligth     ,'heavy',heavy     ,'ram',ram       ,'catapult',catapult  ,'knight',knight    ,'snob',snob      
+
       end
+
     end 
 
-    # analisaBot
-    # page.save_screenshot('combinated.png')
   end
-
 
   def show_conditions conditions
     ap @global_conditions
