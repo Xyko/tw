@@ -96,7 +96,7 @@ class Tw
     file = File.new(Dir.pwd.to_s+"/#{source_to_file source}")
     @redis_reload.hmset source , 'mtime', file.mtime
     puts "Loading... #{source}"
-    load "/Users/francisco/Dropbox/CRuby/tw/#{source_to_file source}"
+    load "#{Dir.pwd.to_s}/#{source_to_file source}"
   end
 
   def reload? source
