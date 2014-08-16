@@ -9,9 +9,7 @@ class Tw
     table.all('tr').each  do |tr|
 
       if tr.text.include? 'suas próprias'
-
-        puts tr.all('a').methods.sort
-
+        
         ville_name  = tr.text.split(')')[0].split('(')[0].strip
         ville_xy    = (tr.text.match /\d{3}\|\d{3}/).to_s 
         ville_x     = ville_xy.split('|')[0]
