@@ -52,7 +52,11 @@ class Tw
               # # Attack with ideal confitions... I will continue ....  
               c_button = '/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/table[2]/tbody/tr[3]/td/table[3]/tbody/tr[2]/td/a[3]'
               puts "CButton = #{page.find(:xpath, c_button)}"
-              page.find(:xpath, c_button).click
+              button = page.find(:xpath, c_button)
+              # puts button.inspect
+              # puts button.class
+              # puts button.methods
+              button.trigger('click')
               farm_total += capacity
               all('a').select {|elt| elt.text == "Apagar" }.first.click
             
