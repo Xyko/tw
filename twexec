@@ -20,7 +20,11 @@ class Tw
   Capybara.register_driver :selenium_with_long_timeout do |app|
     client = Selenium::WebDriver::Remote::Http::Default.new
     client.timeout = 120
-    Capybara::Driver::Selenium.new(app, :browser => :firefox, :http_client => client, :timeout => 120)
+    Capybara::Driver::Selenium.new(app, :browser => :firefox, :http_client => client, :timeout => 120, :js_errors => false)
+  end
+
+  Capybara.register_driver :poltergeist do |app|
+    Capybara::Poltergeist::Driver.new(app, :browser => :firefox, :timeout => 120, :js_errors => false)
   end
 
   Capybara.app_host           = "http://www.tribalwars.com.br/"
@@ -66,27 +70,6 @@ class Tw
     # rogelio Solange Bia
 
   end
-
-  # def refresh_world conditions={}
-  #   puts "Please reload #{self} to use this source code."
-  # end
-
-  # def report conditions={}
-  #   puts "Please reload #{self} to use this source code."
-  # end
-
-  # def spys conditions={}
-  #   puts "Please reload #{self} to use this source code."
-  # end
-
-  # def refresh_my_villes conditions={}
-  #   puts "Please reload #{self} to use this source code."
-  # end
-
-  # def farm conditions={}
-  #   reload? farm
-  #   exit(0)
-  # end
 
   def source_to_file source
     return "#{self.class.name.to_s}_#{source}.rb"

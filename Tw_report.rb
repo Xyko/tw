@@ -2,7 +2,7 @@ class Tw
 
   def report conditions={}
 
-    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=attack&screen=report')
+    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village=14431repor&mode=attack&screen=report')
     page.save_screenshot('report.png')
     analisaBot
     xi = @global_conditions[:master_x]
