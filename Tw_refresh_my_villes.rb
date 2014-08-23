@@ -1,6 +1,6 @@
 class Tw
 
-  def refresh_my_villes
+  def refresh_my_villes 
     connected?
     #page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=combined&screen=overview_villages')
     page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=units&screen=overview_villages&type=there ')

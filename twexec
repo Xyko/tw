@@ -176,7 +176,7 @@ class Tw
     desc "MyVilles"
     command "villes" do ||
       connected?
-      refresh_my_villes
+      refresh_my_villes 
     end
 
     desc "Reload"
