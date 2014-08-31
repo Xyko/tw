@@ -3,8 +3,10 @@ class Tw
   def farm conditions
 
       def get_my_village_id ville 
-        return '14431' if ville == 'xyko000' 
-        return '13854' if ville == 'xyko001' 
+        return '14431' if ville == 'xykoBR000' 
+        return '13854' if ville == 'xykoBR001' 
+        return '13686' if ville == 'xykoBR002' 
+        return '12748' if ville == 'xykoBR003' 
         return '14431'
       end
 

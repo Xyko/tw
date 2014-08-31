@@ -1,10 +1,55 @@
+reload "farm"
+xit
+reload  ddd
+player
+reload  "aaa"
+conditions aaa
+conditions "aaa"
+exixt
+conditions source=aaa
+conditions
+reload source=aaa
+reload teste
+reload Tw_farm
+spy
+spy ""
+farm  ""
+exi
+reload
+farm "s=2"
+farm
+farm "s,2"
+?
+help
+refersh
+reload refresh_my_villes
+spys "p,0"
+farm ""
+reload report
+reload tools
+farm a
+farm "a,xyko000 n,2"
+reload farm
+farm "a,xyko001 n,1"
+villew
+farm "a,xyko001 n,2"
+farm "a,xyko000"
+viles
 clear
+spy "p,0"
+history
+farm "a,xyko003 n,2"
+farm "a,xykoBR003 n,2"
+farm "a,xykoBR003 n,4"
+refresh
+farm "a,xykoBR000 n,4"
+farm "a,xykoBR001"
+farm "a,xykoBR002"
+ville
+farm "a,xykoBR000"
+report
+farm "a,xykoBR003"
+
 login
 villes
-farm
-
-spy "p,0"
-refresh
-report
-farm ""
 exit

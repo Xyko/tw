@@ -20,17 +20,20 @@ class Tw
   Capybara.register_driver :selenium_with_long_timeout do |app|
     client = Selenium::WebDriver::Remote::Http::Default.new
     client.timeout = 120
-    Capybara::Driver::Selenium.new(app, :browser => :firefox, :http_client => client, :timeout => 120, :js_errors => false)
+    Capybara::Driver::Selenium.new(app, :browser => :chrome, :http_client => client, :timeout => 120, :js_errors => false)
   end
 
   Capybara.register_driver :poltergeist do |app|
-    Capybara::Poltergeist::Driver.new(app, :browser => :firefox, :timeout => 120, :js_errors => false)
+    Capybara::Poltergeist::Driver.new(app, :browser => :chrome, :timeout => 120, :js_errors => false)
   end
 
+  
   Capybara.app_host           = "http://www.tribalwars.com.br/"
   Capybara.run_server         = false
   Capybara.current_driver     = :poltergeist
   Capybara.javascript_driver  = :selenium_with_long_timeout
+
+  Capybara.current_session.driver.headers = { 'Content-type' => '' }
 
   include Capybara::DSL
 
@@ -58,7 +61,7 @@ class Tw
     @redis_reload     = Redis.new(:host => "127.0.0.1", :db => 6)
     @redis_reload.flushdb
 
-    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 12}
+    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 3}
     
     methods_to_reload(self.class.name.to_s).each do |source|
       reload source
