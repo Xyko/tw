@@ -61,7 +61,7 @@ class Tw
     @redis_reload     = Redis.new(:host => "127.0.0.1", :db => 6)
     @redis_reload.flushdb
 
-    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 3}
+    @global_conditions = {:master_id => '14431', :master_x => 531, :master_y => 612, :master_distance => 13}
     
     methods_to_reload(self.class.name.to_s).each do |source|
       reload source
