@@ -50,9 +50,6 @@ class Tw
     report ""
     puts "Reports   loaded => #{@redis_report.dbsize}."
 
-    refresh_my_villes
-    puts "MVillages loaded => #{@redis_myvilles.dbsize}."
-
   end
 
 end

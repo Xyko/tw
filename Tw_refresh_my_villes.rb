@@ -1,44 +1,70 @@
 class Tw
 
+  def show_villes
+    puts format("%-20s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s",
+        "Ville","Id","spear","sword","axe","spy","light","heavy","ram","catapult","knight","snob","CFarm","Dist.")
+    @global_conditions[:villages_info].each do |key,ville|
+        puts format("%-20s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s",ville[:name],key,
+        ville[:spear   ],
+        ville[:sword   ],
+        ville[:axe     ],
+        ville[:spy     ],
+        ville[:light   ],
+        ville[:heavy   ],
+        ville[:ram     ],
+        ville[:catapult],
+        ville[:knight  ],
+        ville[:snob    ],
+        ville[:farm_capacity],
+        ville[:distance])
+    end
+  end 
+
+
   def refresh_my_villes 
     connected?
-    #page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=combined&screen=overview_villages')
-    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=units&screen=overview_villages&type=there ')
+    
+    page.visit('http://br62.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&mode=combined&screen=overview_villages')
+    analisaBot
 
-    table = page.find_by_id('units_table')
+    table = page.find_by_id('combined_table')
     table.all('tr').each  do |tr|
 
-      if tr.text.include? 'suas próprias'
-        
-        ville_name  = tr.text.split(')')[0].split('(')[0].strip
-        ville_xy    = (tr.text.match /\d{3}\|\d{3}/).to_s 
-        ville_x     = ville_xy.split('|')[0]
-        ville_y     = ville_xy.split('|')[1]
-        tropas      = tr.text.split('suas próprias')[1].gsub('Comandos','').strip.split(' ')
-        spear   = tropas[0]
-        sword   = tropas[1]
-        axe     = tropas[2]
-        spy     = tropas[4]
-        ligth   = tropas[5]
-        heavy   = tropas[7]      
-        ram     = tropas[8]      
-        catapult= tropas[9]      
-        knight  = tropas[10]      
-        snob    = tropas[11]      
-        @redis_myvilles.hmset ville_xy, 'name', ville_name, 'x', ville_x, 'y' , ville_y, 'spear',spear     ,'sword',sword     ,'axe',axe       ,'spy',spy       ,'ligth',ligth     ,'heavy',heavy     ,'ram',ram       ,'catapult',catapult  ,'knight',knight    ,'snob',snob      
-        puts ""
-        puts "Ville.:   #{ville_name}"
-        puts "spear     => #{spear}"
-        puts "axe       => #{axe}"
-        puts "spy       => #{spy}"
-        puts "ligth     => #{ligth}"
-        puts "heavy     => #{heavy}"
-        puts "ram       => #{ram}"
-        puts "catapult  => #{catapult}"
-        puts "knight    => #{knight}"
-        puts "snob      => #{snob}"
+        if tr.text.size > 10
 
-      end
+            ville_name  = tr.text.split(')')[0].split('(')[0].strip
+            ville_xy    = (tr.text.match /\d{3}\|\d{3}/).to_s 
+            ville_x     = ville_xy.split('|')[0]
+            ville_y     = ville_xy.split('|')[1]
+            tropas      = tr.text.split(' ')
+            spear   = tropas[5]
+            sword   = tropas[6]
+            axe     = tropas[7]
+            spy     = tropas[9]
+            light   = tropas[10]
+            heavy   = tropas[12]      
+            ram     = tropas[13]      
+            catapult= tropas[14]      
+            knight  = tropas[15]      
+            snob    = tropas[16]      
+
+            @global_conditions[:villages_info].each do |key,ville|
+                if  ville[:name] == ville_name
+                    ville[:spear   ] = spear    
+                    ville[:sword   ] = sword    
+                    ville[:axe     ] = axe      
+                    ville[:spy     ] = spy      
+                    ville[:light   ] = light    
+                    ville[:heavy   ] = heavy          
+                    ville[:ram     ] = ram            
+                    ville[:catapult] = catapult       
+                    ville[:knight  ] = knight         
+                    ville[:snob    ] = snob   
+                    ville[:farm_capacity] =  spear.to_i * 25 + sword.to_i * 15 + axe.to_i * 10 + light.to_i * 80 + heavy.to_i * 50 
+                end
+            end
+        
+        end
 
     end 
 

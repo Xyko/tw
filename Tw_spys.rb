@@ -18,16 +18,13 @@ class Tw
           target = aux[0]+'|'+aux[1]
           page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&screen=place')
           analisaBot
-page.save_screenshot('spy1.png')
           fill_in('spy'     , :with => '1')
           #fill_in('light'   , :with => '5')
           fill_in('input'   , :with => target)
           page.click_button('Ataque')
           analisaBot
-page.save_screenshot('spy2.png')
           sleep(1)
           page.click_button('Enviar ataque')
-page.save_screenshot('spy3.png')
           analisaBot
           sleep(1)
           puts "ataquei #{target}"

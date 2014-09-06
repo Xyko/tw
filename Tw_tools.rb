@@ -20,7 +20,45 @@ class Tw
     analisaBot
     page.save_screenshot('login2.png')
     @connected = true
+
+
+    puts  Capybara.current_session.driver.headers.inspect
+
+
+    player = @redis_player.hmget(@login,'id','name','ally','villages','points')
+
+    @global_conditions[:player_info] = {:player => @login,
+                                        :id     => player[0],
+                                        :name   => player[1],
+                                        :ally   => player[2],
+                                        :villages => player[3],
+                                        :points   => player[4]
+                                      }
+
+    @redis_village.keys('*').each do |key|
+      ville = @redis_village.hmget(key,'name','x','y','player')
+      if ville[3] == @global_conditions[:player_info][:id]
+        aux = {key => {:name => ville[0], :x => ville[1], :y => ville[2],
+            :spear   => 0,
+            :sword   => 0,
+            :axe     => 0,
+            :spy     => 0,
+            :light   => 0,
+            :heavy   => 0,      
+            :ram     => 0,      
+            :catapult=> 0,      
+            :knight  => 0,      
+            :snob    => 0,
+            :farm_capacity => 0,
+            :distance => 0} 
+        }
+        @global_conditions[:villages_info].merge!(aux)
+      end
+    end
+
     puts "Connected status.: ON".blue
+    #ap @global_conditions
+
   end
 
   def influence  conditions={} 
@@ -32,7 +70,6 @@ class Tw
       yi = conditions[:y].to_i if conditions.key?(:y) 
       distance = conditions[:d].to_f if conditions.key?(:d)
     end
-    #and ville[3] == "0" then  # and (ville[3] == "0" or ['14142','14932'].include?(key)) then
     @redis_village.keys('*').each do |key|
       ville = @redis_village.hmget(key,'name','x','y','player','points')
       xf = ville[1].to_i
@@ -89,29 +126,43 @@ class Tw
   end
 
 
-def who_has_troops_near_to xi, yi 
+def near_to(xi, yi)
+   result = Hash.new
+   @global_conditions[:villages_info].each do |key,ville|
+      xf = ville[:x].to_i
+      yf = ville[:y].to_i
+      distance = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
+      ville[:distance] = distance
+      result.merge!({key => {:distance => distance, :farm_capacity => ville[:farm_capacity]}})
+   end
+   return result
 end
 
-def my_near_to(xi, yi)
 
-  @redis_myvilles.keys('*').each do |key|
-    my_ville = @redis_myvilles.hmget(key,'link','x','y','dist') 
-    
-  end
+def get_player player
 
-  @player.villages.each  {|rkey, rvalue|
-    xf = rvalue.xcoord.to_i
-    yf = rvalue.ycoord.to_i
-    dist = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
-    if dist <= menor and dist > 0 then
-      menor = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
-      key   = rkey
-      rvalue.aux = dist
-    end
-  }
-  return @player.villages[key]
+  return @redis_player.hmget("#{player}",'id','name','ally','villages','points')
+
+  # ally = info[2]
+  # id   = info[0]
+  # puts info.inspect
+  # puts ally
+  # keys = @redis_village.keys
+  # keys.sort.each do |key|
+  #   if @redis_village.hmget(key,'player')[0] == id
+  #     aux = @redis_village.hmget(key,'name','x','y')
+  #     puts "#{key} #{aux.inspect}"
+  #   end
+  # end
+  # keys = @redis_player.keys
+  # keys.sort.each do |key|
+  #   if @redis_player.hmget(key,'ally')[0] == ally
+  #     aux = @redis_player.hmget(key,'id','name','ally','villages','points')
+  #     puts aux.inspect
+  #   end
+  # end
+
 end
-
 
   # def login_map  
   #   page.visit('http://www.tribalwars.com.br/external_auth.php?client=tribalwarsmap&sid=53da222ada9e1')
@@ -128,32 +179,6 @@ end
   #   @connected = true
   #   puts "Connected status.: ON".blue
   # end
-
-
-  # def show_player player
-
-  #   info = @redis_player.hmget("#{player}",'id','name','ally','villages','points')
-  #   ally = info[2]
-  #   id   = info[0]
-  #   puts info.inspect
-  #   puts ally
-  #   keys = @redis_village.keys
-  #   keys.sort.each do |key|
-  #     if @redis_village.hmget(key,'player')[0] == id
-  #       aux = @redis_village.hmget(key,'name','x','y')
-  #       puts "#{key} #{aux.inspect}"
-  #     end
-  #   end
-  #   keys = @redis_player.keys
-  #   keys.sort.each do |key|
-  #     if @redis_player.hmget(key,'ally')[0] == ally
-  #       aux = @redis_player.hmget(key,'id','name','ally','villages','points')
-  #       puts aux.inspect
-  #     end
-  #   end
-
-  # end
-
   
 
   # def method_missing(method, *args, &block)
