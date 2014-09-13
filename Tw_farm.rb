@@ -4,9 +4,9 @@ class Tw
 
       count      = 0
       farm_total = 0
-      puts "Atualizando reports...."
+      puts "Atualizando reports....".green
       report
-      puts "Analizando #{@redis_report.dbsize} relatórios........"
+      puts "Analizando #{@redis_report.dbsize} relatórios........".green
       farm_total = 0
       @redis_report.keys('*').each do |key|
         xi =   key.split('_')[0].to_i
@@ -15,7 +15,6 @@ class Tw
         puts format("%s %i/%i %i %i",key,count,@redis_report.dbsize, xi, yi)
         refresh_my_villes
         attack_vector = near_to xi, yi 
-        show_villes
         selected = 0
         attack_vector.sort_by {|k,v| v[:distance]}.each do |key_ville,value_ville|
 
@@ -30,11 +29,11 @@ class Tw
 
           report = @redis_report.hmget(key,'link','x','y','dist') 
           report[0].gsub!('14431',selected)
-          farm_total += farm_from report, @global_conditions[:villages_info].key(selected)
+          farm_total += farm_from report, selected
         
         else
 
-          puts "Farmers depleted... waiting for good news times..."   
+          puts "Farmers depleted... waiting for good news times...".green   
           break  
 
         end
@@ -45,7 +44,7 @@ class Tw
 
         # Sleep random for anti-BOT
         r = rand(10)
-        puts "Sleeping #{r} seconds..."
+        puts "Sleeping #{r} seconds...".green
         sleep r
 
       end
@@ -74,26 +73,27 @@ class Tw
         tropas += tropa.to_i
       end
 
-      #puts "Selected #{selected}"
-      ap selected
-      puts "Capacity #{capacity}"
-      puts "Defenser #{defensor}"
-      puts "Target   #{alvo}"
-      puts "Troops   #{tropas}"
+      puts "Capacity #{capacity.to_s.green}".blue
+      puts "Defenser #{defensor.to_s.green}".blue
+      puts "Target   #{alvo.to_s.green}".blue
+      puts "Troops   #{tropas.to_s.green}".blue
+      show_villes selected
 
       if capacity <= 30
         puts "Clean empty page...".red
         all('a').select {|elt| elt.text == "Apagar" }.first.click
+        return 0
       else
 
         if tropas > 0
           puts "Troops found. Clean page......".red
           all('a').select {|elt| elt.text == "Apagar" }.first.click if defensor == '---'
+          return 0
         else
 
           # # Attack with ideal confitions... I will continue ....  
           c_button = '/html/body/table/tbody/tr[2]/td[2]/table[3]/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td/table/tbody/tr/td[2]/table/tbody/tr/td/table[2]/tbody/tr[3]/td/table[3]/tbody/tr[2]/td/span/span/span[3]/span/span[3]/span/a[3]'
-          puts "CButton = #{page.find(:xpath, c_button)}"
+          #puts "CButton = #{page.find(:xpath, c_button)}"
           button = page.find(:xpath, c_button)
           button.trigger('click')
           all('a').select {|elt| elt.text == "Apagar" }.first.trigger('click')
@@ -103,7 +103,8 @@ class Tw
       end
 
     rescue Capybara::ElementNotFound
-      puts "Pagina com erro. Retornando...."
+      puts "Pagina com erro. Retornando....".red
+      return 0
     end
   end
 

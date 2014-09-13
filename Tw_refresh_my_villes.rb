@@ -1,9 +1,10 @@
 class Tw
 
-  def show_villes
+  def show_villes highlight=nil
     puts format("%-20s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s",
         "Ville","Id","spear","sword","axe","spy","light","heavy","ram","catapult","knight","snob","CFarm","Dist.")
     @global_conditions[:villages_info].each do |key,ville|
+        if highlight == key
         puts format("%-20s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s",ville[:name],key,
         ville[:spear   ],
         ville[:sword   ],
@@ -16,7 +17,22 @@ class Tw
         ville[:knight  ],
         ville[:snob    ],
         ville[:farm_capacity],
-        ville[:distance])
+        ville[:distance]).red
+        else
+        puts format("%-20s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s %-8s",ville[:name],key,
+        ville[:spear   ],
+        ville[:sword   ],
+        ville[:axe     ],
+        ville[:spy     ],
+        ville[:light   ],
+        ville[:heavy   ],
+        ville[:ram     ],
+        ville[:catapult],
+        ville[:knight  ],
+        ville[:snob    ],
+        ville[:farm_capacity],
+        ville[:distance]).blue
+        end
     end
   end 
 
