@@ -1,5 +1,13 @@
 class Tw
 
+  def clear
+    %x(clear)
+  end
+
+  def is_a_number?(s)
+    s.to_s.match(/\A[+-]?\d+?(\.\d+)?\Z/) == nil ? false : true
+  end
+
   def analisaBot
     botMsg = "contra Bots"
     if page.body.to_s.index(botMsg)
@@ -21,9 +29,7 @@ class Tw
     page.save_screenshot('login2.png')
     @connected = true
 
-
     puts  Capybara.current_session.driver.headers.inspect
-
 
     player = @redis_player.hmget(@login,'id','name','ally','villages','points')
 
@@ -57,7 +63,6 @@ class Tw
     end
 
     puts "Connected status.: ON".blue
-    #ap @global_conditions
 
   end
 
@@ -76,11 +81,10 @@ class Tw
       yf = ville[2].to_i
       dist = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
       if dist <= distance and dist > 0 
-        @redis_influence.hmset key , 'x' , xf, 'y' , yf, 'd' , dist , 'p' , ville[3]
+        @redis_influence.hmset key , 'x' , xf, 'y' , yf, 'd' , dist , 'p' , ville[3] 
       end
     end
   end
-
 
   def yesno(prompt = 'Continue?', default = true)
     a = ''
@@ -100,15 +104,15 @@ class Tw
     end
   end
 
-  def show_notes
-    connected?
-    page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&screen=overview')
-    analisaBot
-    page.save_screenshot('overview.png')
-    x = page.all('a').select {|elt| elt.text == "» Editar" }.first.click
-    puts x.inspect
-    page.save_screenshot('notes.png')
-  end
+  # def show_notes
+  #   connected?
+  #   page.visit('http://'+@world+'.tribalwars.com.br/game.php?village='+@global_conditions[:master_id]+'&screen=overview')
+  #   analisaBot
+  #   page.save_screenshot('overview.png')
+  #   x = page.all('a').select {|elt| elt.text == "» Editar" }.first.click
+  #   puts x.inspect
+  #   page.save_screenshot('notes.png')
+  # end
 
   def show_conditions conditions
     ap @global_conditions
@@ -125,61 +129,43 @@ class Tw
       return hash
   end
 
+  def near_to(xi, yi)
+     result = Hash.new
+     @global_conditions[:villages_info].each do |key,ville|
+        xf = ville[:x].to_i
+        yf = ville[:y].to_i
+        distance = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
+        ville[:distance] = distance
+        result.merge!({key => {:distance => distance, :farm_capacity => ville[:farm_capacity]}})
+     end
+     return result
+  end
 
-def near_to(xi, yi)
-   result = Hash.new
-   @global_conditions[:villages_info].each do |key,ville|
-      xf = ville[:x].to_i
-      yf = ville[:y].to_i
-      distance = Math.sqrt((xi - xf) ** 2 + (yi - yf) ** 2)
-      ville[:distance] = distance
-      result.merge!({key => {:distance => distance, :farm_capacity => ville[:farm_capacity]}})
-   end
-   return result
-end
 
+  def get_player player
 
-def get_player player
+    return @redis_player.hmget("#{player}",'id','name','ally','villages','points')
 
-  return @redis_player.hmget("#{player}",'id','name','ally','villages','points')
+    # ally = info[2]
+    # id   = info[0]
+    # puts info.inspect
+    # puts ally
+    # keys = @redis_village.keys
+    # keys.sort.each do |key|
+    #   if @redis_village.hmget(key,'player')[0] == id
+    #     aux = @redis_village.hmget(key,'name','x','y')
+    #     puts "#{key} #{aux.inspect}"
+    #   end
+    # end
+    # keys = @redis_player.keys
+    # keys.sort.each do |key|
+    #   if @redis_player.hmget(key,'ally')[0] == ally
+    #     aux = @redis_player.hmget(key,'id','name','ally','villages','points')
+    #     puts aux.inspect
+    #   end
+    # end
 
-  # ally = info[2]
-  # id   = info[0]
-  # puts info.inspect
-  # puts ally
-  # keys = @redis_village.keys
-  # keys.sort.each do |key|
-  #   if @redis_village.hmget(key,'player')[0] == id
-  #     aux = @redis_village.hmget(key,'name','x','y')
-  #     puts "#{key} #{aux.inspect}"
-  #   end
-  # end
-  # keys = @redis_player.keys
-  # keys.sort.each do |key|
-  #   if @redis_player.hmget(key,'ally')[0] == ally
-  #     aux = @redis_player.hmget(key,'id','name','ally','villages','points')
-  #     puts aux.inspect
-  #   end
-  # end
-
-end
-
-  # def login_map  
-  #   page.visit('http://www.tribalwars.com.br/external_auth.php?client=tribalwarsmap&sid=53da222ada9e1')
-  #   fill_in('name',     :with => @login)
-  #   fill_in('password', :with => @passwd)
-  #   page.find(:xpath,'/html/body/div/table/tbody/tr/td/table/tbody/tr/td/form/input[3]').click
-  #   page.save_screenshot('login_map.png')
-
-  #   exit(0)
-
-  #   page.find(:xpath,'/html/body/div[2]/div[1]/div[2]/div/div[2]/div[2]/div[1]/div[2]/form/div[1]/div/a[1]').click
-  #   analisaBot
-  #   page.save_screenshot('login2.png')
-  #   @connected = true
-  #   puts "Connected status.: ON".blue
-  # end
-  
+  end
 
   # def method_missing(method, *args, &block)
   #   puts method

@@ -12,6 +12,7 @@ require 'ruby-progressbar'
 require 'highline/import'
 require 'awesome_print'
 require 'rest_client'
+require 'cairo'
 
 #{}%x(nohup redis-server &)
 
@@ -27,7 +28,6 @@ class Tw
     Capybara::Poltergeist::Driver.new(app, :browser => :firefox, :timeout => 120)#, :js_errors => false)
   end
 
-  
   Capybara.app_host           = "http://www.tribalwars.com.br/"
   Capybara.run_server         = false
   Capybara.current_driver     = :poltergeist
@@ -52,21 +52,26 @@ class Tw
     @passwd  = options[:passwd]
     @connected  = false
     
+    @fileAlly_name    = File.expand_path(File.dirname(__FILE__) ).to_s + "/ally#{@world}.txt"
+    @fileVillage_name = File.expand_path(File.dirname(__FILE__) ).to_s + "/village#{@world}.txt"
+    @filePlayer_name  = File.expand_path(File.dirname(__FILE__) ).to_s + "/player#{@world}.txt"
+    @fileFilters_name = File.expand_path(File.dirname(__FILE__) ).to_s + "/filters#{@world}.txt"
+
     @redis_ally       = Redis.new(:host => "127.0.0.1", :db => 0)
     @redis_village    = Redis.new(:host => "127.0.0.1", :db => 1)
     @redis_player     = Redis.new(:host => "127.0.0.1", :db => 2)
     @redis_report     = Redis.new(:host => "127.0.0.1", :db => 3)
     @redis_influence  = Redis.new(:host => "127.0.0.1", :db => 4)
     @redis_myvilles   = Redis.new(:host => "127.0.0.1", :db => 5)
-    @redis_reload     = Redis.new(:host => "127.0.0.1", :db => 6)
-    @redis_reload.flushdb
+    @redis_filters    = Redis.new(:host => "127.0.0.1", :db => 6)
+    @redis_tregion    = Redis.new(:host => "127.0.0.1", :db => 7)
 
     @global_conditions = {:player_info      => {},
                           :villages_info    => {},
-                          :master_id        => '14431', 
-                          :master_x         => 531, 
-                          :master_y         => 612, 
-                          :master_distance  => 13}
+                          :master_id        => '', 
+                          :master_x         => 0, 
+                          :master_y         => 0, 
+                          :master_distance  => 0}
     
     methods_to_reload(self.class.name.to_s).each do |source|
       reload source
@@ -82,16 +87,8 @@ class Tw
 
   def reload source
     file = File.new(Dir.pwd.to_s+"/#{source_to_file source}")
-    @redis_reload.hmset source , 'mtime', file.mtime
     puts "Loading... #{source}"
     load "#{Dir.pwd.to_s}/#{source_to_file source}"
-  end
-
-  def reload? source
-    file = File.new(Dir.pwd.to_s+"/#{source_to_file source}")
-    current_mtime   = file.mtime.to_s
-    previous_mtime  = @redis_reload.hmget("#{source}",'mtime')[0].to_s
-    reload source if !(current_mtime == previous_mtime)
   end
 
   def rall
@@ -99,7 +96,6 @@ class Tw
       reload source
     end
   end
-
 
   def commands
     
@@ -118,51 +114,11 @@ class Tw
       Prompt.application.prompt = "Tribal > ".blue
     end
 
-    # desc "Login map"
-    # command "login_map" do ||
-    #   login_map
-    #   Prompt.application.prompt = "TribalMap > ".blue
-    # end
-
-    # desc "Player"
-    # param :player, "Show player info", @redis_player.keys('*')
-    # command "player :player" do |player|
-    #   show_player player
-    # end
-
-    # desc "Ally"
-    # param :ally, "Show ally info", @redis_player.keys('*')
-    # command "ally :ally" do |ally|
-    #   puts @redis_ally.get("#{ally}")
-    # end
-
-    # desc "Village"
-    # param :village, "Show village info", @redis_player.keys('*')
-    # command "village :village" do |village|
-    #   puts @redis_village.get("#{village}")
-    # end
-
-    # desc "Influence"
-    # param :influence_conditions, "Select conditions to select villages inner influence window from master_village."
-    # command "influence :influence_conditions" do |conditions|
-    #   @redis_influence.flushdb
-    #   influence (to_hash_conditions conditions)
-    #   puts "Influence loaded => #{@redis_influence.dbsize}."
-    # end
-
     desc "Report"
     command "report " do ||
       connected?
-      @redis_report.flushdb
-      report #(to_hash_conditions conditions)
+      report 
       puts "Reports   loaded => #{@redis_report.dbsize}."
-    end
-
-    desc "Spys"
-    param :spys_conditions, "Select conditions to select villages inner influence set."
-    command "spy :spys_conditions" do |conditions|
-      connected?
-      spys (to_hash_conditions conditions)
     end
 
     desc "Farm"
@@ -177,18 +133,6 @@ class Tw
       connected?
       farmall
     end
-
-
-    # desc "Conditions"
-    # param :master, "Set conditions."
-    # command "conditions :master" do |master|
-    #   show_conditions (to_hash_conditions master)
-    # end
-
-    # desc "Notes"
-    # command "notes" do ||
-    #   show_notes
-    # end
 
     desc "MyVilles"
     command "villes" do ||
@@ -208,6 +152,35 @@ class Tw
       rall
     end
 
+    desc "Mapa"
+    command "mapa" do ||
+      tw_map
+    end
+
+    desc "Region"
+    param :command, "Commands to filters.", ['show','set','get', 'clean', 'reload']
+    command "region :command" do |command|
+      region_conditions command
+    end
+
+    desc "RSpy"
+    param :region , "Region to relod spys.", ['show','set','get']
+    command "rspy :region" do |region|
+      spy_region region
+    end
+
+    desc "Spys"
+    param :spys_conditions, "Select conditions to select villages inner influence set."
+    command "spy :spys_conditions" do |conditions|
+      connected?
+      spys to_hash_conditions conditions
+    end
+
+    desc "Clean"
+    command "clean" do 
+      connected?
+      clean_report
+    end
 
     Prompt.application.prompt = "Tribal > ".red
     history_file = File.join(File.expand_path(File.dirname(__FILE__) ).to_s, ".tribal-history")    
@@ -235,306 +208,6 @@ TwExec.start(ARGV)
 
 
 
-# if request.headers['Access-Control-Request-Headers'] then 
-#   headers['Access-Control-Allow-Headers'] = request.headers['Access-Control-Request-Headers'] 
-# end
-
-
-
-# Atendimento Online
-#   Claro diz   
-#   Boa tarde, francisco@corp.globo.com. Bem vindo(a) ao atendimento por chat. Por favor, aguarde logo você será atendido(a). 
-#   FABIANE  Respondeu em 04-09-2014 17:36:56   
-#   Olá, bem-vindo ao atendimento via chat da Claro! Como posso ajudar? 
-#     francisco@corp.globo.com 04-09-2014 17:37:41  
-#   Estou com um problema no meu celular...
-  
-#   FABIANE  Respondeu em 04-09-2014 17:38:18   
-#   Sim 
-#   FABIANE  Respondeu em 04-09-2014 17:38:30   
-#   Em que? 
-#     francisco@corp.globo.com 04-09-2014 17:38:37  
-#   Desde de hoje a tarde meu celular indica "somente emergências"
-  
-#     francisco@corp.globo.com 04-09-2014 17:38:55  
-#   Naõ estou conseguindo fazer nenhuma ligação...  
-#     francisco@corp.globo.com 04-09-2014 17:39:20  
-#   Já desliguei, tirei o chip e liguei novamente....
-# nada
-  
-#     francisco@corp.globo.com 04-09-2014 17:39:38  
-#   Estou sem comunicação.... como procedo?
-  
-#   FABIANE  Respondeu em 04-09-2014 17:40:12   
-#   Me informe o número da linha seu nome completo, data de nascimento e CPF. 
-#     francisco@corp.globo.com 04-09-2014 17:41:26  
-#   Francisco José Galvão Corrêa
-# 289.387.801-63
-# 10/05/1962
-# Linha.: 9-6662-6969 ( eu tenho outras) só essa que está com problema
-  
-#   FABIANE  Respondeu em 04-09-2014 17:41:40   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 17:41:42   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 17:41:51  
-#   ok... obrigado  
-#   FABIANE  Respondeu em 04-09-2014 17:43:42   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 17:44:22   
-#   Me informe o seu endereço 
-#     francisco@corp.globo.com 04-09-2014 17:45:33  
-#   Rua Conselheiro Ferraz, 65 casa 29
-# Lins de Vasconcelos, Rio de Janrio, RJ
-# 20710-350
-# Isso? 
-#   FABIANE  Respondeu em 04-09-2014 17:47:09   
-#   obrigado. 
-#   FABIANE  Respondeu em 04-09-2014 17:47:11   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 17:47:25  
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 17:49:09   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 17:49:20  
-#   OK...
-  
-#   FABIANE  Respondeu em 04-09-2014 17:51:09   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 17:51:31   
-#   Verifique e não consta instailidade de rede
-  
-#   FABIANE  Respondeu em 04-09-2014 17:51:38   
-#   em sua localidade 
-#   FABIANE  Respondeu em 04-09-2014 17:51:43   
-#   *instabilidade  
-#     francisco@corp.globo.com 04-09-2014 17:52:11  
-#   O que ocorre então....?
-  
-#   FABIANE  Respondeu em 04-09-2014 17:52:28   
-#   O aparelho apresenta sinal no visor no momento em que tenta fazer a ligação?
-  
-#     francisco@corp.globo.com 04-09-2014 17:53:04  
-#   Eu estou sem o serviço de telefonia no celular.... Como procedo?
-  
-#     francisco@corp.globo.com 04-09-2014 17:53:50  
-#   em configurações no triangulo de rede apresenta a mensagem: somente emergência....
-  
-#   FABIANE  Respondeu em 04-09-2014 17:53:50   
-#   Sr, apareçe sinal de torre? 
-#   FABIANE  Respondeu em 04-09-2014 17:54:02   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 17:54:04   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 17:54:30  
-#   Não....
-  
-#   FABIANE  Respondeu em 04-09-2014 17:54:36   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 17:54:38   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 17:54:45  
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 17:56:38   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 17:57:14   
-#   Desligue o seu aparelho.  
-#   FABIANE  Respondeu em 04-09-2014 17:58:03   
-#   que enviarei uma atualização  
-#   FABIANE  Respondeu em 04-09-2014 17:58:25   
-#   direto em sua linha
-
-  
-#     francisco@corp.globo.com 04-09-2014 17:58:40  
-#   estou desligando
-  
-#   FABIANE  Respondeu em 04-09-2014 17:58:49   
-#   Sim 
-#   FABIANE  Respondeu em 04-09-2014 17:59:53   
-#   Já desligou?  
-#     francisco@corp.globo.com 04-09-2014 18:00:06  
-#   ok... acho que está desligado agora....
-# religo? 
-#   FABIANE  Respondeu em 04-09-2014 18:00:21   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 18:01:14  
-#   ok
-  
-#   FABIANE  Respondeu em 04-09-2014 18:01:57   
-#   Realiza novos testes.
-  
-#     francisco@corp.globo.com 04-09-2014 18:02:18  
-#   vou religar o celular...
-  
-#   FABIANE  Respondeu em 04-09-2014 18:02:25   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 18:03:20   
-#   Faça um teste.  
-#     francisco@corp.globo.com 04-09-2014 18:03:56  
-#   continua a parte do celular dizendo: somente emergência
-  
-#   FABIANE  Respondeu em 04-09-2014 18:05:42   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 18:07:40   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 18:09:33  
-#   Oi... ainda está ai?
-  
-#   FABIANE  Respondeu em 04-09-2014 18:09:39   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 18:11:39   
-#   Aguarde um momento por favor  
-#     francisco@corp.globo.com 04-09-2014 18:12:11  
-#   Oi? continuo aguardando 
-#   FABIANE  Respondeu em 04-09-2014 18:13:37   
-#   Estou registrando um protocolo em aberto para o setor tecnico 
-#   FABIANE  Respondeu em 04-09-2014 18:13:53   
-#   Entrara em contato
-  
-#     francisco@corp.globo.com 04-09-2014 18:13:59  
-#   ok... obrigado... 
-#   FABIANE  Respondeu em 04-09-2014 18:13:59   
-#   com senhor. 
-#   FABIANE  Respondeu em 04-09-2014 18:14:25   
-#   Me informe o um telefone de contato 
-#     francisco@corp.globo.com 04-09-2014 18:15:17  
-#   Desculpe, mas como ele entrarão em contato?
-  
-#   FABIANE  Respondeu em 04-09-2014 18:15:43   
-#   Me informe o um telefone de contato 
-#     francisco@corp.globo.com 04-09-2014 18:15:47  
-#   Outra linha? Essa não fala e não recebe....
-  
-#   FABIANE  Respondeu em 04-09-2014 18:15:55   
-#   isso  
-#     francisco@corp.globo.com 04-09-2014 18:16:06  
-#   Ok... 21-22815562 
-#     francisco@corp.globo.com 04-09-2014 18:16:18  
-#   Meu telefone de casa
-  
-#   FABIANE  Respondeu em 04-09-2014 18:16:47   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 18:16:59   
-#   Me informe um exemplo de  
-#   FABIANE  Respondeu em 04-09-2014 18:17:11   
-#   como esta realizando ligações 
-#   FABIANE  Respondeu em 04-09-2014 18:17:27   
-#   somente para esta registrando 
-#   FABIANE  Respondeu em 04-09-2014 18:17:35   
-#   em seu protocolo  
-#   FABIANE  Respondeu em 04-09-2014 18:17:49   
-#   para analisar.  
-#     francisco@corp.globo.com 04-09-2014 18:18:05  
-#   não está recebendo... (as pessoas dizem que está fora de área)
-  
-#     francisco@corp.globo.com 04-09-2014 18:18:26  
-#   tem algum prazo para eles entrarem em contato?  
-#   FABIANE  Respondeu em 04-09-2014 18:18:41   
-#   em até 5 dias.  
-#     francisco@corp.globo.com 04-09-2014 18:18:59  
-#   ??? vou ficar 5 dias sem minha linha?
-  
-#   FABIANE  Respondeu em 04-09-2014 18:19:27   
-#   Não   
-#   FABIANE  Respondeu em 04-09-2014 18:19:35   
-#   estaram em contato antes  
-#   FABIANE  Respondeu em 04-09-2014 18:19:57   
-#   deste prazo 
-#   FABIANE  Respondeu em 04-09-2014 18:20:17   
-#   ode me informa um exemplo de ligação  
-#   FABIANE  Respondeu em 04-09-2014 18:20:23   
-#   que esta realizando 
-#   FABIANE  Respondeu em 04-09-2014 18:20:25   
-#   ? 
-#     francisco@corp.globo.com 04-09-2014 18:20:46  
-#   Ok... vou aguardar mas, realmente, preciso dele....
-# Obrigado  
-#   FABIANE  Respondeu em 04-09-2014 18:22:25   
-#   Sr.preciso de um exemplo  
-#     francisco@corp.globo.com 04-09-2014 18:23:02  
-#   Como assim? Exemplo?
-  
-#     francisco@corp.globo.com 04-09-2014 18:23:21  
-#   É só tentar ligar para 21-96662-6969  
-#   FABIANE  Respondeu em 04-09-2014 18:23:21   
-#   de uma ligação que esteja tentando realizar 
-#   FABIANE  Respondeu em 04-09-2014 18:23:33   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 18:24:51   
-#   Sr.?  
-#   FABIANE  Respondeu em 04-09-2014 18:26:10   
-#   e somente para comprovar que esteja tentando realizar ligações certas.  
-#     francisco@corp.globo.com 04-09-2014 18:26:20  
-#   Oi  
-#   FABIANE  Respondeu em 04-09-2014 18:26:36   
-#   Para o setor técnico. 
-#   FABIANE  Respondeu em 04-09-2014 18:27:46   
-#   Um exemplo de um número que esteja  
-#   FABIANE  Respondeu em 04-09-2014 18:28:00   
-#   tentando faze ligações. 
-#     francisco@corp.globo.com 04-09-2014 18:30:11  
-#   acabei de tentar colocar o meu chip em um celular identico ao meu....
-# Resultado: Chip inválido - somente ligações de emergência.... 
-#   FABIANE  Respondeu em 04-09-2014 18:31:42   
-#   ok  
-#   FABIANE  Respondeu em 04-09-2014 18:31:44   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 18:33:06   
-#   Desde quando esta com esse erro 
-#   FABIANE  Respondeu em 04-09-2014 18:33:12   
-#   ? 
-#     francisco@corp.globo.com 04-09-2014 18:33:40  
-#   Voltei o chip para o meu celular (o original) e está igual.....
-# somente emergência  
-#   FABIANE  Respondeu em 04-09-2014 18:34:10   
-#   Desde quando esta com esse erro ? 
-#     francisco@corp.globo.com 04-09-2014 18:34:31  
-#   Agora a tarde +- 12:30.... estava no meio de uma audiência no forum ....
-# Pela manhã, falei com ele normalmente,....  
-#   FABIANE  Respondeu em 04-09-2014 18:36:08   
-#   A falha ocorre somente no local informado ou em qualquer lugar? 
-#   FABIANE  Respondeu em 04-09-2014 18:36:38   
-#   Em sua casa ou em qualquer lugar? 
-#     francisco@corp.globo.com 04-09-2014 18:37:35  
-#   em qualquer lugar.... agora estou em casa.... (quando ocorreu eu estava a cerca de 3 Km daqui) Outros celulares da claro estão funcionando aqui 
-#   FABIANE  Respondeu em 04-09-2014 18:37:46   
-#   ok  
-#     francisco@corp.globo.com 04-09-2014 18:37:55  
-#   Minha esposa, filha e filho,,, (todos funcuonam)  
-#   FABIANE  Respondeu em 04-09-2014 18:37:58   
-#   Qual a marca e modelo do aparelho do cliente ?  
-#     francisco@corp.globo.com 04-09-2014 18:39:09  
-#   O meu (que não está funcionando) é umMoto G ( comprado de vcs, inclusive)....
-# O do meu filho (que é igual, e de vcs tambem) está funcionando ok....
-  
-#   FABIANE  Respondeu em 04-09-2014 18:39:28   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 18:41:26   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 18:43:26   
-#   Aguarde um momento por favor  
-#   FABIANE  Respondeu em 04-09-2014 18:44:16   
-#   Seu caso foi encaminhado  
-#   FABIANE  Respondeu em 04-09-2014 18:44:24   
-#   para o setor  
-#   Claro diz   
-#   Você ficou mais de 3 minutos sem responder e o atendimento foi interrompido.   Se quiser continuar, por favor, envie uma mensagem para iniciar um novo atendimento. 
-#   FABIANE  Respondeu em 04-09-2014 18:44:32   
-#   o número do seu protocolo é 2014281763348   
-#   FABIANE  Respondeu em 04-09-2014 18:44:42   
-#   Algo mais que posso te ajudar?  
-#     francisco@corp.globo.com 04-09-2014 18:45:12  
-#   O que faço agora então....espero?
-  
-#   FABIANE  Respondeu em 04-09-2014 18:45:22   
-#   Isso  
-#   FABIANE  Respondeu em 04-09-2014 18:45:46   
-#   Qualquer outro problema ou necessidade pode entrar em contato conosco. Muito obrigado!  
-#     francisco@corp.globo.com 04-09-2014 18:46:18  
-#   Ok... e esse protocolo... eu consgigo acompanhar o historico?
-  
-#   FABIANE  Respondeu em 04-09-2014 18:46:26   
-#   sim
 
 
 
